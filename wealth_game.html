@@ -2,227 +2,284 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>财富博弈：保险与裸奔</title>
+    <title>迭代1：保险策略二元博弈</title>
     <style>
-        * { box-sizing: border-box; touch-action: manipulation; }
-        body { 
-            background: #000; color: #fff; font-family: -apple-system, sans-serif; 
-            margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden;
-        }
-        /* 顶部统计栏 */
-        header { 
-            background: #1a1a1a; padding: 10px; display: flex; justify-content: space-around;
-            border-bottom: 1px solid #333; font-size: 13px;
-        }
-        .stat-group { text-align: center; }
-        .stat-label { color: #888; display: block; margin-bottom: 2px; }
-        .cyan { color: #00f2ff; font-weight: bold; }
-        .red { color: #ff4d4d; font-weight: bold; }
-
-        /* 主画布区 */
-        #container { flex: 1; position: relative; background: #000; }
-        canvas { display: block; }
-        .overlay-label {
-            position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5);
-            padding: 4px 8px; font-size: 10px; border-radius: 4px; pointer-events: none;
-        }
-
-        /* 底部控制区 */
-        footer { 
-            background: #1a1a1a; padding: 15px; border-top: 1px solid #333;
-            display: flex; flex-direction: column; gap: 10px;
-        }
-        .controls-row { display: flex; gap: 10px; align-items: center; }
-        button {
-            flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold;
-            font-size: 14px; cursor: pointer;
-        }
-        .btn-reset { background: #333; color: #fff; }
-        .btn-pause { background: #00f2ff; color: #000; }
-        
-        .slider-box { flex: 2; font-size: 12px; color: #ccc; }
-        input[type="range"] { width: 100%; margin-top: 5px; }
+        body { background: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        #sidebar { width: 300px; background: #1e1e1e; padding: 20px; border-right: 1px solid #333; overflow-y: auto; }
+        h2 { color: #00bcd4; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .param-group { margin-bottom: 15px; }
+        label { display: block; font-size: 0.85em; color: #bbb; margin-bottom: 5px; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .val-disp { float: right; color: #00bcd4; font-weight: bold; }
+        button { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-init { background: #00bcd4; color: white; }
+        .btn-init:hover { background: #00acc1; }
+        .btn-pause { background: #ff9800; color: white; }
+        #main { flex: 1; display: flex; padding: 20px; gap: 20px; }
+        .canvas-box { background: #000; border: 1px solid #444; border-radius: 8px; position: relative; flex: 1; }
+        canvas { display: block; width: 100%; height: 100%; }
+        .label-tag { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); padding: 4px 10px; font-size: 12px; color: #ccc; border-radius: 4px; pointer-events: none; }
+        #charts-col { width: 450px; display: flex; flex-direction: column; gap: 20px; }
+        .chart-container { flex: 1; background: #1e1e1e; border-radius: 8px; padding: 10px; position: relative;}
+        .legend-box { font-size: 12px; margin-bottom: 10px; display: flex; gap: 15px;}
+        .leg-item { display: flex; align-items: center; }
+        .leg-color { width: 10px; height: 10px; margin-right: 5px; border-radius: 50%; }
     </style>
 </head>
 <body>
 
-<header>
-    <div class="stat-group">
-        <span class="stat-label">参保组存活</span>
-        <span id="ins-alive" class="cyan">0</span>
+<div id="sidebar">
+    <h2>迭代1：参数控制</h2>
+    <div class="param-group">
+        <label>总人口 (强制50/50分组): <span class="val-disp" id="v-pop">400</span></label>
+        <input type="range" id="p-pop" min="100" max="800" step="10" value="400">
     </div>
-    <div class="stat-group">
-        <span class="stat-label">裸奔组存活</span>
-        <span id="uni-alive" class="red">0</span>
+    <div class="param-group">
+        <label>风险事件密度: <span class="val-disp" id="v-risks">40</span></label>
+        <input type="range" id="p-risks" min="0" max="150" value="40">
     </div>
-    <div class="stat-group">
-        <span class="stat-label">财富比 (参保/裸奔)</span>
-        <span id="wealth-ratio" style="color: #ffd700;">1.0</span>
+    <div class="param-group">
+        <label>好事发生密度: <span class="val-disp" id="v-goods">40</span></label>
+        <input type="range" id="p-goods" min="0" max="150" value="40">
     </div>
-</header>
+    <hr style="border-color:#333">
+    <div class="param-group">
+        <label>单次风险最大伤害: <span class="val-disp" id="v-damage">50</span></label>
+        <input type="range" id="p-damage" min="10" max="100" value="50">
+    </div>
+    <div class="param-group">
+        <label>保险理赔率 (减伤%): <span class="val-disp" id="v-ins-rate">90</span></label>
+        <input type="range" id="p-ins-rate" min="50" max="100" value="90">
+    </div>
+    <div class="param-group">
+        <label>每帧保费成本: <span class="val-disp" id="v-ins-cost">0.05</span></label>
+        <input type="range" id="p-ins-cost" min="0.01" max="0.2" step="0.01" value="0.05">
+    </div>
 
-<div id="container">
-    <div class="overlay-label">青色光环：参保组 | 红色粒子：常规风险</div>
-    <canvas id="simCanvas"></canvas>
+    <button class="btn-init" onclick="resetSim()">🔄 重置实验</button>
+    <button class="btn-pause" onclick="togglePause()" id="pauseBtn">⏯ 暂停/继续</button>
 </div>
 
-<footer>
-    <div class="controls-row">
-        <div class="slider-box">
-            风险频率: <span id="v-risks">30</span>
-            <input type="range" id="p-risks" min="10" max="100" value="30">
+<div id="main">
+    <div class="canvas-box">
+        <div class="label-tag">物理碰撞场 (青圈=参保组, 无圈=裸奔组)</div>
+        <canvas id="simCanvas"></canvas>
+    </div>
+
+    <div id="charts-col">
+        <div class="chart-container">
+            <div class="legend-box">
+                 <span style="font-weight:bold; color:#ccc">双轨财富曲线 (排序后):</span>
+                 <div class="leg-item"><div class="leg-color" style="background:cyan"></div>参保组</div>
+                 <div class="leg-item"><div class="leg-color" style="background:#ff5555"></div>裸奔组</div>
+            </div>
+            <canvas id="curveCanvas"></canvas>
         </div>
-        <div class="slider-box">
-            保险减伤: <span id="v-rate">90</span>%
-            <input type="range" id="p-rate" min="50" max="99" value="90">
+        <div class="chart-container">
+            <div class="legend-box">
+                 <span style="font-weight:bold; color:#ccc">核心指标对比:</span>
+            </div>
+            <canvas id="barCanvas"></canvas>
         </div>
     </div>
-    <div class="controls-row">
-        <button class="btn-reset" onclick="init()">🔄 重置模拟</button>
-        <button class="btn-pause" onclick="togglePause()" id="pauseBtn">⏸ 暂停</button>
-    </div>
-</footer>
+</div>
 
 <script>
-    const canvas = document.getElementById('simCanvas');
-    const ctx = canvas.getContext('2d');
-    let families = [], risks = [], goods = [];
-    let isPaused = false;
+// --- 配置与全局变量 ---
+const canvasIds = ['simCanvas', 'curveCanvas', 'barCanvas'];
+const ctxs = {};
+let families = [], risks = [], goods = [];
+let isPaused = false, animationId;
 
-    // 参数配置
-    let conf = {
-        pop: 160,        // 手机屏幕较小，减少人口保证流畅
-        damage: 40,
-        insRate: 0.9,
-        insCost: 0.05,
-        riskCount: 30
+// --- 工具函数 ---
+function getConf() {
+    return {
+        pop: parseInt(document.getElementById('p-pop').value),
+        risks: parseInt(document.getElementById('p-risks').value),
+        goods: parseInt(document.getElementById('p-goods').value),
+        damage: parseInt(document.getElementById('p-damage').value),
+        insRate: parseInt(document.getElementById('p-ins-rate').value) / 100,
+        insCost: parseFloat(document.getElementById('p-ins-cost').value),
+        gain: 30 // 固定好事收益，减少变量
     };
+}
+document.querySelectorAll('input[type="range"]').forEach(input => {
+    input.addEventListener('input', (e) => document.getElementById('v-' + e.target.id.split('-').slice(1).join('-')).innerText = e.target.value);
+});
 
-    class Family {
-        constructor(isInsured) {
-            this.hasIns = isInsured;
-            this.x = Math.random() * canvas.width;
-            this.y = Math.random() * canvas.height;
-            this.vx = (Math.random() - 0.5) * 2.5;
-            this.vy = (Math.random() - 0.5) * 2.5;
-            this.wealth = 100;
-            this.alive = true;
-            this.flash = 0;
-        }
-        update() {
-            if (!this.alive) return;
-            this.x += this.vx; this.y += this.vy;
-            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
-            
-            if (this.hasIns) this.wealth -= conf.insCost;
-            if (this.wealth <= 0) this.alive = false;
-            if (this.flash > 0) this.flash--;
-        }
-        draw() {
-            if (!this.alive) return;
-            if (this.hasIns) {
-                ctx.strokeStyle = "rgba(0, 242, 255, 0.5)";
-                ctx.beginPath(); ctx.arc(this.x, this.y, 8, 0, Math.PI*2); ctx.stroke();
-            }
-            ctx.fillStyle = this.flash > 0 ? "#fff" : (this.hasIns ? "#00f2ff" : "#ff4d4d");
-            ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
-        }
+// --- 类定义 ---
+class Family {
+    constructor(isInsured) {
+        this.x = Math.random() * ctxs.simCanvas.canvas.width;
+        this.y = Math.random() * ctxs.simCanvas.canvas.height;
+        this.vx = (Math.random() - 0.5) * 1.5;
+        this.vy = (Math.random() - 0.5) * 1.5;
+        this.wealth = 50 + Math.random() * 50; // 初始财富 50-100
+        this.alive = true;
+        this.hasIns = isInsured; // 强制设定，终身不变
+        this.flash = 0;
     }
+    update(conf) {
+        if (!this.alive) return;
+        this.x += this.vx; this.y += this.vy;
+        if (this.x < 0 || this.x > ctxs.simCanvas.canvas.width) this.vx *= -1;
+        if (this.y < 0 || this.y > ctxs.simCanvas.canvas.height) this.vy *= -1;
 
-    class Risk {
-        constructor() {
-            this.x = Math.random() * canvas.width;
-            this.y = Math.random() * canvas.height;
-            this.vx = (Math.random() - 0.5) * 4;
-            this.vy = (Math.random() - 0.5) * 4;
-        }
-        update() {
-            this.x += this.vx; this.y += this.vy;
-            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
-        }
-        draw() {
-            ctx.fillStyle = "#ff4d4d";
-            ctx.font = "14px Arial";
-            ctx.fillText("×", this.x - 4, this.y + 5);
-        }
+        // 保费扣除逻辑
+        if (this.hasIns) this.wealth -= conf.insCost;
+        
+        if (this.wealth <= 0) { this.wealth = 0; this.alive = false; }
+        if (this.flash > 0) this.flash--;
     }
-
-    function init() {
-        // 自适应画布大小
-        const container = document.getElementById('container');
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
-
-        families = [];
-        for (let i = 0; i < conf.pop; i++) {
-            families.push(new Family(i < conf.pop / 2));
+    draw() {
+        if (!this.alive) return;
+        const ctx = ctxs.simCanvas;
+        ctx.beginPath();
+        // 参保组的青色光环
+        if (this.hasIns) {
+            ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; ctx.lineWidth = 2;
+            ctx.arc(this.x, this.y, 7, 0, Math.PI*2); ctx.stroke();
         }
-        updateRisks();
-        isPaused = false;
+        // 本体颜色根据财富变化
+        let r = this.wealth < 50 ? 255 : Math.max(0, 255 - (this.wealth-50)*2);
+        let g = this.wealth > 50 ? 255 : Math.max(0, this.wealth*3);
+        ctx.fillStyle = this.flash > 0 ? "white" : `rgb(${r},${g},50)`;
+        ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
     }
+}
 
-    function updateRisks() {
-        risks = Array.from({length: conf.riskCount}, () => new Risk());
+class Particle {
+    constructor(type) {
+        this.type = type;
+        this.x = Math.random() * ctxs.simCanvas.canvas.width;
+        this.y = Math.random() * ctxs.simCanvas.canvas.height;
+        this.vx = (Math.random() - 0.5) * 5;
+        this.vy = (Math.random() - 0.5) * 5;
     }
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        if (this.x < 0 || this.x > ctxs.simCanvas.canvas.width) this.vx *= -1;
+        if (this.y < 0 || this.y > ctxs.simCanvas.canvas.height) this.vy *= -1;
+    }
+    draw() {
+        const ctx = ctxs.simCanvas;
+        ctx.fillStyle = this.type === 'risk' ? "#ff3333" : "#ffd700";
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.type==='risk'?4:5, 0, Math.PI*2); ctx.fill();
+        if(this.type==='risk'){ ctx.fillStyle='white'; ctx.font='10px sans-serif'; ctx.fillText('×', this.x-3, this.y+3);}
+    }
+}
 
-    function loop() {
-        if (!isPaused) {
-            ctx.fillStyle = "rgba(0,0,0,0.2)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+// --- 主循环与初始化 ---
+function resetSim() {
+    const conf = getConf();
+    canvasIds.forEach(id => {
+        const cvs = document.getElementById(id);
+        cvs.width = cvs.clientWidth; cvs.height = cvs.clientHeight;
+        ctxs[id] = cvs.getContext('2d');
+    });
+    
+    families = [];
+    // 强制50/50设定
+    for (let i = 0; i < conf.pop; i++) {
+        families.push(new Family(i % 2 === 0)); // 偶数参保，奇数不参保
+    }
+    risks = Array.from({length: conf.risks}, () => new Particle('risk'));
+    goods = Array.from({length: conf.goods}, () => new Particle('good'));
+    isPaused = false;
+    if (animationId) cancelAnimationFrame(animationId);
+    loop();
+}
 
-            risks.forEach(r => { r.update(); r.draw(); });
-
-            let insWealth = 0, uniWealth = 0, insCount = 0, uniCount = 0;
-
-            families.forEach(f => {
-                if (!f.alive) return;
-                f.update();
-                risks.forEach(r => {
-                    if (Math.hypot(f.x - r.x, f.y - r.y) < 12) {
-                        let d = Math.random() * conf.damage;
-                        if (f.hasIns) d *= (1 - conf.insRate);
-                        f.wealth -= d; f.flash = 2;
-                    }
-                });
-                // 模拟少量的随机收益点
-                if (Math.random() < 0.005) f.wealth += 10;
-                
-                f.draw();
-
-                if (f.hasIns) { insWealth += f.wealth; insCount++; }
-                else { uniWealth += f.wealth; uniCount++; }
+function loop() {
+    if (!isPaused) {
+        const conf = getConf();
+        ctxs.simCanvas.fillStyle = "rgba(0,0,0,0.2)";
+        ctxs.simCanvas.fillRect(0, 0, ctxs.simCanvas.canvas.width, ctxs.simCanvas.canvas.height);
+        
+        [...risks, ...goods].forEach(p => { p.update(); p.draw(); });
+        
+        families.forEach(f => {
+            if (!f.alive) return;
+            f.update(conf);
+            // 碰撞检测
+            risks.forEach(r => {
+                if (Math.hypot(f.x-r.x, f.y-r.y) < 10) {
+                    let dmg = Math.random() * conf.damage;
+                    if (f.hasIns) dmg *= (1 - conf.insRate); // 参保减伤
+                    f.wealth -= dmg; f.flash = 2;
+                }
             });
+            goods.forEach(g => {
+                if (Math.hypot(f.x-g.x, f.y-g.y) < 10) {
+                    f.wealth += Math.random() * conf.gain; f.flash = 2;
+                }
+            });
+            f.draw();
+        });
+        drawCharts();
+    }
+    animationId = requestAnimationFrame(loop);
+}
 
-            // 更新状态
-            document.getElementById('ins-alive').innerText = insCount;
-            document.getElementById('uni-alive').innerText = uniCount;
-            let ratio = (insCount > 0 && uniCount > 0) ? 
-                ((insWealth/insCount) / (uniWealth/uniCount)).toFixed(2) : "N/A";
-            document.getElementById('wealth-ratio').innerText = ratio;
-        }
-        requestAnimationFrame(loop);
+// --- 图表绘制 (核心修改) ---
+function drawCharts() {
+    const insuredAlive = families.filter(f => f.alive && f.hasIns);
+    const uninsuredAlive = families.filter(f => f.alive && !f.hasIns);
+
+    // 1. 绘制双轨财富曲线
+    const cCtx = ctxs.curveCanvas;
+    const cW = cCtx.canvas.width, cH = cCtx.canvas.height;
+    cCtx.clearRect(0,0,cW,cH);
+
+    const drawCurve = (group, color) => {
+        if(group.length === 0) return;
+        const wealths = group.map(f => f.wealth).sort((a,b) => a-b);
+        const maxW = Math.max(200, ...wealths); // 固定一个Y轴基准以便比较
+        cCtx.beginPath(); cCtx.strokeStyle = color; cCtx.lineWidth = 2;
+        wealths.forEach((w, i) => {
+            const x = (i / (wealths.length-1 || 1)) * cW;
+            const y = cH - (w / maxW) * (cH - 20) - 10;
+            i===0 ? cCtx.moveTo(x,y) : cCtx.lineTo(x,y);
+        });
+        cCtx.stroke();
+    }
+    drawCurve(uninsuredAlive, '#ff5555'); // 先画红线
+    drawCurve(insuredAlive, 'cyan');    // 后画青线叠加
+
+    // 2. 绘制对比柱状图
+    const bCtx = ctxs.barCanvas;
+    const bW = bCtx.canvas.width, bH = bCtx.canvas.height;
+    bCtx.clearRect(0,0,bW,bH);
+    
+    // 计算数据
+    const insPop = insuredAlive.length;
+    const uninsPop = uninsuredAlive.length;
+    const insAvg = insPop ? insuredAlive.reduce((a,b)=>a+b.wealth,0)/insPop : 0;
+    const uninsAvg = uninsPop ? uninsuredAlive.reduce((a,b)=>a+b.wealth,0)/uninsPop : 0;
+    
+    const drawBarGroup = (xBase, title, val1, val2, maxVal, color1, color2) => {
+        bCtx.fillStyle = '#ccc'; bCtx.font = "12px sans-serif"; bCtx.fillText(title, xBase+10, 20);
+        const barW = 40; const maxBarH = bH - 60;
+        const h1 = (val1/maxVal)*maxBarH; const h2 = (val2/maxVal)*maxBarH;
+        // Bar 1
+        bCtx.fillStyle = color1; bCtx.fillRect(xBase + 20, bH-h1-20, barW, h1);
+        bCtx.fillText(Math.round(val1), xBase + 20, bH-h1-25);
+        // Bar 2
+        bCtx.fillStyle = color2; bCtx.fillRect(xBase + 80, bH-h2-20, barW, h2);
+        bCtx.fillText(Math.round(val2), xBase + 80, bH-h2-25);
+        // Labels
+        bCtx.fillStyle = '#888'; bCtx.font = "10px sans-serif";
+        bCtx.fillText("参保", xBase+25, bH-5); bCtx.fillText("裸奔", xBase+85, bH-5);
     }
 
-    // 控制逻辑
-    document.getElementById('p-risks').addEventListener('input', (e) => {
-        conf.riskCount = parseInt(e.target.value);
-        document.getElementById('v-risks').innerText = conf.riskCount;
-        updateRisks();
-    });
-    document.getElementById('p-rate').addEventListener('input', (e) => {
-        conf.insRate = parseInt(e.target.value) / 100;
-        document.getElementById('v-rate').innerText = e.target.value;
-    });
+    drawBarGroup(0, "存活人数对比", insPop, uninsPop, getConf().pop/2, 'cyan', '#ff5555');
+    drawBarGroup(bW/2, "平均财富对比", insAvg, uninsAvg, Math.max(insAvg, uninsAvg, 100), 'cyan', '#ff5555');
+}
 
-    function togglePause() {
-        isPaused = !isPaused;
-        document.getElementById('pauseBtn').innerText = isPaused ? "▶ 继续" : "⏸ 暂停";
-    }
-
-    window.onload = () => { init(); loop(); };
+function togglePause() {
+    isPaused = !isPaused; document.getElementById('pauseBtn').innerText = isPaused ? "▶ 继续" : "⏸ 暂停";
+}
+window.onload = resetSim;
 </script>
 </body>
 </html>
