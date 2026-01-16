@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>财富博弈：保险与裸奔</title>
+    <style>
+        * { box-sizing: border-box; touch-action: manipulation; }
+        body { 
+            background: #000; color: #fff; font-family: -apple-system, sans-serif; 
+            margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+        /* 顶部统计栏 */
+        header { 
+            background: #1a1a1a; padding: 10px; display: flex; justify-content: space-around;
+            border-bottom: 1px solid #333; font-size: 13px;
+        }
+        .stat-group { text-align: center; }
+        .stat-label { color: #888; display: block; margin-bottom: 2px; }
+        .cyan { color: #00f2ff; font-weight: bold; }
+        .red { color: #ff4d4d; font-weight: bold; }
+
+        /* 主画布区 */
+        #container { flex: 1; position: relative; background: #000; }
+        canvas { display: block; }
+        .overlay-label {
+            position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5);
+            padding: 4px 8px; font-size: 10px; border-radius: 4px; pointer-events: none;
+        }
+
+        /* 底部控制区 */
+        footer { 
+            background: #1a1a1a; padding: 15px; border-top: 1px solid #333;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .controls-row { display: flex; gap: 10px; align-items: center; }
+        button {
+            flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold;
+            font-size: 14px; cursor: pointer;
+        }
+        .btn-reset { background: #333; color: #fff; }
+        .btn-pause { background: #00f2ff; color: #000; }
+        
+        .slider-box { flex: 2; font-size: 12px; color: #ccc; }
+        input[type="range"] { width: 100%; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="stat-group">
+        <span class="stat-label">参保组存活</span>
+        <span id="ins-alive" class="cyan">0</span>
+    </div>
+    <div class="stat-group">
+        <span class="stat-label">裸奔组存活</span>
+        <span id="uni-alive" class="red">0</span>
+    </div>
+    <div class="stat-group">
+        <span class="stat-label">财富比 (参保/裸奔)</span>
+        <span id="wealth-ratio" style="color: #ffd700;">1.0</span>
+    </div>
+</header>
+
+<div id="container">
+    <div class="overlay-label">青色光环：参保组 | 红色粒子：常规风险</div>
+    <canvas id="simCanvas"></canvas>
+</div>
+
+<footer>
+    <div class="controls-row">
+        <div class="slider-box">
+            风险频率: <span id="v-risks">30</span>
+            <input type="range" id="p-risks" min="10" max="100" value="30">
+        </div>
+        <div class="slider-box">
+            保险减伤: <span id="v-rate">90</span>%
+            <input type="range" id="p-rate" min="50" max="99" value="90">
+        </div>
+    </div>
+    <div class="controls-row">
+        <button class="btn-reset" onclick="init()">🔄 重置模拟</button>
+        <button class="btn-pause" onclick="togglePause()" id="pauseBtn">⏸ 暂停</button>
+    </div>
+</footer>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    let families = [], risks = [], goods = [];
+    let isPaused = false;
+
+    // 参数配置
+    let conf = {
+        pop: 160,        // 手机屏幕较小，减少人口保证流畅
+        damage: 40,
+        insRate: 0.9,
+        insCost: 0.05,
+        riskCount: 30
+    };
+
+    class Family {
+        constructor(isInsured) {
+            this.hasIns = isInsured;
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * 2.5;
+            this.vy = (Math.random() - 0.5) * 2.5;
+            this.wealth = 100;
+            this.alive = true;
+            this.flash = 0;
+        }
+        update() {
+            if (!this.alive) return;
+            this.x += this.vx; this.y += this.vy;
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            
+            if (this.hasIns) this.wealth -= conf.insCost;
+            if (this.wealth <= 0) this.alive = false;
+            if (this.flash > 0) this.flash--;
+        }
+        draw() {
+            if (!this.alive) return;
+            if (this.hasIns) {
+                ctx.strokeStyle = "rgba(0, 242, 255, 0.5)";
+                ctx.beginPath(); ctx.arc(this.x, this.y, 8, 0, Math.PI*2); ctx.stroke();
+            }
+            ctx.fillStyle = this.flash > 0 ? "#fff" : (this.hasIns ? "#00f2ff" : "#ff4d4d");
+            ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    class Risk {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * 4;
+            this.vy = (Math.random() - 0.5) * 4;
+        }
+        update() {
+            this.x += this.vx; this.y += this.vy;
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+        }
+        draw() {
+            ctx.fillStyle = "#ff4d4d";
+            ctx.font = "14px Arial";
+            ctx.fillText("×", this.x - 4, this.y + 5);
+        }
+    }
+
+    function init() {
+        // 自适应画布大小
+        const container = document.getElementById('container');
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+
+        families = [];
+        for (let i = 0; i < conf.pop; i++) {
+            families.push(new Family(i < conf.pop / 2));
+        }
+        updateRisks();
+        isPaused = false;
+    }
+
+    function updateRisks() {
+        risks = Array.from({length: conf.riskCount}, () => new Risk());
+    }
+
+    function loop() {
+        if (!isPaused) {
+            ctx.fillStyle = "rgba(0,0,0,0.2)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            risks.forEach(r => { r.update(); r.draw(); });
+
+            let insWealth = 0, uniWealth = 0, insCount = 0, uniCount = 0;
+
+            families.forEach(f => {
+                if (!f.alive) return;
+                f.update();
+                risks.forEach(r => {
+                    if (Math.hypot(f.x - r.x, f.y - r.y) < 12) {
+                        let d = Math.random() * conf.damage;
+                        if (f.hasIns) d *= (1 - conf.insRate);
+                        f.wealth -= d; f.flash = 2;
+                    }
+                });
+                // 模拟少量的随机收益点
+                if (Math.random() < 0.005) f.wealth += 10;
+                
+                f.draw();
+
+                if (f.hasIns) { insWealth += f.wealth; insCount++; }
+                else { uniWealth += f.wealth; uniCount++; }
+            });
+
+            // 更新状态
+            document.getElementById('ins-alive').innerText = insCount;
+            document.getElementById('uni-alive').innerText = uniCount;
+            let ratio = (insCount > 0 && uniCount > 0) ? 
+                ((insWealth/insCount) / (uniWealth/uniCount)).toFixed(2) : "N/A";
+            document.getElementById('wealth-ratio').innerText = ratio;
+        }
+        requestAnimationFrame(loop);
+    }
+
+    // 控制逻辑
+    document.getElementById('p-risks').addEventListener('input', (e) => {
+        conf.riskCount = parseInt(e.target.value);
+        document.getElementById('v-risks').innerText = conf.riskCount;
+        updateRisks();
+    });
+    document.getElementById('p-rate').addEventListener('input', (e) => {
+        conf.insRate = parseInt(e.target.value) / 100;
+        document.getElementById('v-rate').innerText = e.target.value;
+    });
+
+    function togglePause() {
+        isPaused = !isPaused;
+        document.getElementById('pauseBtn').innerText = isPaused ? "▶ 继续" : "⏸ 暂停";
+    }
+
+    window.onload = () => { init(); loop(); };
+</script>
+</body>
+</html>
